@@ -1,0 +1,3 @@
+#define NOADMIX 0 //(B)
+#define USEPOPINFO 0 //(B)
+#define LOCPRIOR 0//(B)

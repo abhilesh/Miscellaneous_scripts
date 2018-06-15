@@ -1,0 +1,376 @@
+---
+title: "Migration-Selection models in Population Genetics"
+author: "Abhilesh Dhawanjewar"
+date: "`r format(Sys.time(), '%B, %d, %Y')`"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    fig_caption: true
+    highlight: haddock
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, tidy.opts = list(width.cutoff = 60, dev = 'pdf'))
+```
+
+****
+
+## Introduction
+
+Geography plays a central role in the pattern of genetic differentiation in a species. Geographically isolated populations will accumulate mutations over time increasing the differentiation between them. Migration between populations acts to counter this process through genetic exchange and leading to homogenization of the populations. Using population genetic models I aim to investigate the dynamics of allele frequencies on a focal island population under different migratory scenarios.
+
+## Continent-Island Model
+
+### The model 
+
+\begin{figure}
+\centering
+\includegraphics[width = 0.6\textwidth]{Images/continent_island.png}
+\caption{\textbf{Continent-island model.} $m$ is the rate of migration from the continent with an allele frequency $p_{c}$ to the island with an allele frequency $p_{t}$}
+\label{con-isl}
+\end{figure}
+
+* Unidirectional migration from a large mainland population, the _continent_ to a smaller population, the _island_ (Fig: \ref{con-isl}).
+* The frequency of an allele _A_ on a biallelic genetic locus is _p~c~_ on the continent and _p~t~_ on the island in generation _t_
+* Let _m_ be the proportion of alleles on the island that come from the continent in each generation, also referred to as the migration rate or the rate of gene flow.
+* After one generation, for the island population, a proportion _m_ would have come from the continent and a proportion _(1 - m)_ would come from the island.
+* The equation for the allele frequency of A would therefore be - 
+
+\begin{centering}
+
+$p_{t+1} = (m)p_{c} + (1 - m)p_{t} = p_{t} + m(p_{c} - p_{t})$
+
+$\implies \Delta{p} = p_{t+1} - p_{t} = m(p_{c} - p_{t})$
+
+\end{centering}
+
+* At equilibrium, we set $\Delta{p} = 0$ and get $\hat{p} = p_{c}$
+* Performing this recursively, $p_{t} = p_{c} + (1 - m)^{t}(p_{0} - p_{c})$, where $p_{0}$ is the initial allele frequency on the island.
+
+### The code
+
+```{r fig.width = 8, fig.height = 5,fig.align = "center", fig.cap = "Effect of migration rate and continent allele frequency on the allele frequency on the island"}
+# Defining the default intial parameters
+p_c = 0.6     # Allele frequency on the continent
+p_0 = 0.1     # Initial allele frequency on the island 
+m = 0.01      # rate of gene flow
+n_gen = 500   # number of generations 
+
+counter = 1
+
+# Define the color palette for the plots
+col_pal = rep(c("gray0", "firebrick3", "dodgerblue3"), 2)
+
+sim_func <- function(p_c, p_0, m, n_gen) {
+
+p_t <- c(1:n_gen)
+p_t[1] = p_0
+
+for (i in 2:n_gen) {
+  p_t[i] = p_c + (1 - m)^i * (p_0 - p_c)
+}
+
+if (counter %in% c(1,4)) {
+  plot(p_t, type = 'l', 
+       xlab = "Time in generations",
+       ylab = "Allele frequency", 
+       ylim = c(0:1),
+       cex.lab = 0.7,
+       cex.axis = 0.7,
+       mgp = c(2,1,0),
+       col = col_pal[[counter]]);
+} else {
+  points(p_t, type = 'l', col = col_pal[[counter]])
+}
+}
+
+layout(matrix(c(1,2), nrow = 1, ncol = 2, byrow = T))
+
+# Run the simulation for different values of migration rate
+vect_m = c(0.1, 0.01, 0.005)
+
+for (j in vect_m) {
+  sim_func(p_c, p_0, j, n_gen);
+  counter <- counter + 1
+}
+
+legend("topright", 
+legend = c("m = 0.1", "m = 0.01", "m = 0.005"),
+col = col_pal[1:3], lty = 1,
+cex = 0.6, box.lty = 0)
+
+# Run the simulation for different values of continent allele frequencies.
+vect_p = c(0.2, 0.6, 0.8)
+
+for (k in vect_p) {
+  sim_func(k, p_0, m, n_gen);
+  counter <- counter + 1
+}
+
+legend("topright", 
+legend = c("p_c = 0.2", "p_c = 0.6", "p_c = 0.8"),
+col = col_pal[1:3], lty = 1,
+cex = 0.6, box.lty = 0)
+
+```
+
+
+### Inferences 
+
+In the case of unidirectional migration from a large continent to a smaller island, the allele frequnecy on the island at convergence is the same as the allele frequency on the continent. The rate at which equilibrium is reached depends on the rate of migration from the continent to the island, with equilibrium being reached faster for higher rates of gene flow.
+
+\newpage
+
+## Island-Island model
+
+### The model
+
+* A large population is geographically split into _n_ subpopulations (islands) (Fig: \ref{isl-isl}).
+* Each island consists of an equal proportion of _m_ migrants from each other.
+* The islands have allele frequencies $p_{1}, p_{2}, p_{3}, ..... , p_{n}$
+* Then the allele frequency on the island _1_ after a generation as a result from migration from island _2_ only will be - 
+
+\begin{centering}
+
+$p_{1} (t + 1) = mp_{2} (t) + (1 - m)p_{1} (t)$
+
+\end{centering}
+
+* Generalizing to account for migrants arriving from all the islands, we get - 
+
+\begin{centering}
+
+$p_{1} (t + 1) = \sum_{i = 2}^{n}m_{i}p_{i} (t) + (1 - \sum_{i = 2}^{n}m_{i})p_{1} (t)$
+
+\end{centering}
+
+* Performing this recursively, we get -
+
+\begin{centering}
+
+$p_{t} = t\sum_{i = 2}^{n}m_{i}p_{i} (1 - \sum_{i = 2}^{n}m_{i}) + p_{0}(1 - t\sum_{i = 2}^{n}m_{i} + \sum_{i = 2}^{n}m_{i}^{t})$
+
+\end{centering}
+
+\begin{figure}
+\centering
+\includegraphics[width = 0.6\textwidth]{Images/island_island.png}
+\caption{\textbf{Island-Island model.} Islands with allele frequencies $p_{1}, p_{2}, p_{3}, p_{4}, p_{5}$ exchange migrants at the rate of $m$ per generation. The change in allele frequency on island 1 is investigated.}
+\label{isl-isl}
+\end{figure}
+
+### The code
+\textcolor{red}{**DS: I am pretty sure that your island-island model was not correct because it did not account for the fact that, if migration is bidirectional (as you indicate in your drawing), then the allele frequencies on the other islands are also changing. You NEED to take that into account. I THINK the code I rewrote below works...**}
+
+
+\textcolor{red}{**DS revised codes**}
+```{r, eval=F, echo=F, fig.width=8, fig.height=5,fig.align='center', fig.cap = "Effect of migration rate and mean allele frequency on all islands on the allele frequency on the island"}
+
+# In this model I will assume there are five islands
+# Defining the default initial parameters
+p_0 = 0.0
+p_1 = 0.6
+p_2 = 0.6
+p_3 = 0.6
+p_4 = 0.6
+m = 0.01
+n_gen = 500
+
+counter = 1
+
+col_pal = rep(c("gray0", "firebrick3", "dodgerblue3"), 2)
+
+sim_func <- function(p_0, p_1, p_2, p_3, p_4, m, n_gen) {
+
+# Initial the simulation vector
+p_t <- c(1:n_gen)
+p_t[1] = p_0
+sum_migrants = m*p_1 + m*p_2 + m*p_3 + m*p_4
+
+# Run 
+for (i in 2:n_gen) {
+  p_t[i] = sum_migrants + (1 - 4*m)*p_t[i-1]
+}
+
+if (counter %in% c(1,4)) {
+  plot(p_t, type ='l', 
+     xlab = "Time in generations",
+     ylab = "Allele frequency", 
+     ylim = c(0:1),
+     cex.lab = 0.7,
+     cex.axis = 0.7,
+     mgp = c(2,1,0),
+     col = col_pal[[counter]])
+} else {
+  points(p_t, type = 'l', col = col_pal[[counter]])
+}
+}
+
+layout(matrix(c(1,2), nrow = 1, ncol = 2, byrow = T))
+
+vect_m = c(0.1, 0.01, 0.005)
+
+for (i in vect_m) {
+  do.call(sim_func, list(p_0, p_1, p_2, p_3, p_4, i, n_gen));
+  counter = counter + 1
+}
+
+legend("topright", 
+legend = c("m = 0.1", "m = 0.01", "m = 0.005"),
+col = col_pal[1:3], lty = 1,
+cex = 0.6, box.lty = 0)
+
+vect_p = c(0.3, 0.4, 0.8)
+
+for (j in vect_p) {
+  do.call(sim_func, list(p_0, j, j, j, j, m, n_gen));
+  counter = counter + 1
+}
+
+legend("topright", 
+legend = c("avg(p) = 0.2", "avg(p) = 0.6", "avg(p) = 0.8"),
+col = col_pal[1:3], lty = 1,
+cex = 0.6, box.lty = 0)
+```
+
+```{r, fig.width=8, fig.height=5,fig.align='center', fig.cap = "Effect of migration rate and mean allele frequency on all islands on the allele frequency on the island"}
+
+
+# DS revised version: 
+# Defining the default initial parameters
+p_0 = 0
+p_1 = 0.6
+p_2 = 0.6
+p_3 = 0.6
+p_4 = 0.6
+m = 0.01
+n_gen = 500
+
+counter = 1
+
+col_pal = rep(c("gray0", "firebrick3", "dodgerblue3"), 2)
+
+sim_func <- function(p_0, p_1, p_2, p_3, p_4, m, n_gen) {
+
+  # Initial the simulation vector
+  p_0t <- c(1:n_gen)
+  p_1t <- c(1:n_gen)
+  p_2t <- c(1:n_gen)
+  p_3t <- c(1:n_gen)
+  p_4t <- c(1:n_gen)
+
+  p_0t[1] = p_0
+  p_1t[1] = p_1
+  p_2t[1] = p_2
+  p_3t[1] = p_3
+  p_4t[1] = p_4
+
+
+  # Run
+  #here, the summation of the migrant alleles needs to be based on the island allele frequencies from the previous time step...
+  for (i in 2:n_gen) {
+    sum_migrants0 = m*p_1t[i-1] + m*p_2t[i-1] + m*p_3t[i-1] + m*p_4t[i-1]
+    sum_migrants1 = m*p_0t[i-1]
+    sum_migrants2 = m*p_0t[i-1]
+    sum_migrants3 = m*p_0t[i-1]
+    sum_migrants4 = m*p_0t[i-1]
+    p_0t[i] = sum_migrants0 + (1 - 4*m)*p_0t[i-1]
+    p_1t[i] = sum_migrants1 + (1 - m)*p_1t[i-1]
+    p_2t[i] = sum_migrants2 + (1 - m)*p_2t[i-1]
+    p_3t[i] = sum_migrants3 + (1 - m)*p_3t[i-1]
+    p_4t[i] = sum_migrants4 + (1 - m)*p_4t[i-1]
+  }
+
+  if (counter %in% c(1,4)) {
+    plot(p_0t, type ='l',
+         xlab = "Time in generations",
+         ylab = "Allele frequency",
+         ylim = c(0:1),
+         cex.lab = 0.7,
+         cex.axis = 0.7,
+         mgp = c(2,1,0),
+         col = col_pal[[counter]])
+
+    points(p_1t, type='l', lty=2, col=col_pal[[counter]])
+  } else {
+    points(p_0t, type = 'l', col = col_pal[[counter]])
+    points(p_1t, type='l', lty=2, col=col_pal[[counter]])
+  }
+}
+
+layout(matrix(c(1,2), nrow = 1, ncol = 2, byrow = T))
+
+vect_m = c(0.1, 0.01, 0.005)
+
+for (i in vect_m) {
+  do.call(sim_func, list(p_0, p_1, p_2, p_3, p_4, i, n_gen));
+  counter = counter + 1
+}
+
+legend("topright",
+       legend = c("m = 0.1; island 1", "m = 0.01, island 1", "m = 0.005, island 1", "m = 0.1; island 2", "m = 0.01, island 2", "m = 0.005, island 2"),
+       col = c(col_pal[1:3], col_pal[1:3]), lty = c(1,1,1,2,2,2),
+       cex = 0.6, box.lty = 0)
+
+vect_p = c(0.3, 0.4, 0.8)
+
+for (j in vect_p) {
+  do.call(sim_func, list(p_0, j, j, j, j, m, n_gen));
+  counter = counter + 1
+}
+
+legend("topright",
+       legend = c("avg(p) = 0.2, island 1", "avg(p) = 0.6, island 1", "avg(p) = 0.8, island 1", "avg(p) = 0.2, island 2", "avg(p) = 0.6, island 2", "avg(p) = 0.8, island 2"),
+       col = c(col_pal[1:3], col_pal[1:3]), lty = c(1,1,1,2,2,2),
+       cex = 0.6, box.lty = 0)
+
+```
+### Inferences
+
+The island-island model looks at the change in allele frequency of an allele A on a particular island (say, island _X_) with migrants arriving from all the other island populations. In a simple case, where each island provides an equal number of migrants, the equilibrium allele frequency on island _X_ is equal to the mean of the allele frequencies on the remaining islands. The rate of approach to equilibrium is dependent on the rate of migration per generation ( _m_ ), the higher the rate of migration, the faster equilibrium is reached on island _X_. This is equivalent to treating the rest of the islands together as a continent population.
+
+\textcolor{red}{**DS: Accounting for the fact that the allele frequencies on ALL islands will change across time in the island-island model, the equilibrium allele frequency changes slightly. I believe that this makes it so that the equilibrium frequency will be the average of ALL islands (including island 1). This equlibrium may also change according to how the islands are connected by migration... that could be interesting to investigate  **}
+
+
+## One-Dimensional Stepping Stone Model
+
+### The model
+
+\begin{figure}
+\centering
+\includegraphics[width = 0.6\textwidth]{Images/stepping_stone_1d.png}
+\caption{\textbf{One-Dimensional Stepping Stone model.} Infinite islands are arranged on a one-dimensional array. Each island exchanges $\frac{m}{2}$ migrants from its adjacent islands per generation.}
+\label{1d_stp}
+\end{figure}
+
+* The population consists of an infinite one-dimensional array of _n_ colonies (Fig: \ref{1d_stp})
+* In each generation, an individual can migrate at most "one-step" in either direction between the colonies. Exchange of migrants is restricted to between adjacent colonies.
+* Let $p_{i}$ denote the relative frequency of the allele _A_ on the _i_ th colony.
+* Each island contributes $m_{1}/2$ migrants to its neighboring islands.
+* This model also includes a long-range dispersal term and $m_{\infty}$ stands for the rate of long range dispersal per generation i.e. the rate at which a colony exchanges individuals in each generation with a sample taken from the entire population in which the frequency of the allele _A_ is $\bar{p}$
+* The change in allele frequency on the _i_ th colony after a generation will be - 
+
+\begin{centering}
+
+$p'_{i} = \frac{m_{1}}{2} (p_{i - 1} + p_{i + 1}) + (1 - m_{i} - m_{\infty}) p_{i} + m_{\infty}\bar{p}$
+
+\end{centering}
+
+* Generalizing this over multiple generations - 
+
+\begin{centering}
+
+$p_{(i, t + 1)} = (1 - \sum_{i = 1}^{\infty} m_{i} - m_{\infty})p_{(i,t)} + \frac{m_{i}}{2} (p_{i -2}+p_{i-1}+p_{i}+p_{i+1}+p_{i+2}) + m_{\infty}\bar{p}(\frac{m_{1}}{2} + 2) $
+
+\end{centering}
+
+However, I could not analytically derive the recursive relation to calculate the allele frequency on the focal island after $t$ generations.
+
+### Future Work 
+
+* Derive the recursive relationship for the one-dimensional stepping stone model
+* Extend the stepping stone model to higher dimensions
+* Extend the models to investigate the dynamics of multiple alleles
+* Extend the models to incorporate alleles with different effective population sizes (Autosomes, Sex Chromosomes, Mitochondrial.)

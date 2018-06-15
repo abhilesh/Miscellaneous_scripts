@@ -1,0 +1,329 @@
+---
+title: 'Intro to R: Assignment 4'
+author: 'Abhilesh Dhawanjewar'
+date: 'February 8 ^th^ 2017'
+output: 
+  pdf_document: 
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=65))
+```
+
+
+****
+__Citation:__
+
+Lee-Yaw JA, Jacobs CGC, Irwin DE (2014) __Individual performance in relation to cytonuclear discordance in a northern contact zone between long-toed salamander (*Ambystoma macrodactylum*) lineages.__ Molecular Ecology 23(18): 4590-4602. [\textcolor{blue}{http://dx.doi.org/10.1111/mec.12878}](http://dx.doi.org/10.1111/mec.12878)
+
+$~$
+
+__Data Repository:__
+
+Lee-Yaw JA, Jacobs CGC, Irwin DE (2014) Data from: __Individual performance in relation to cytonuclear discordance in a northern contact zone between long-toed salamander (*Ambystoma macrodactylum*) lineages.__ Dryad Digital Repository. [\textcolor{blue}{http://dx.doi.org/10.5061/dryad.q8473}](http://dx.doi.org/10.5061/dryad.q8473)
+
+$~$
+
+__Synopsis:__
+
+When individuals from different species or populations come in contact and hybridize, the patterns of gene flow elucidated by the nuclear vs the mitochondrial markers are often found to be discordant. Two lineages of the long-toed salamander (*Ambystoma macrodactylum*) in Western Canada demonstrate a potential case of such cytonuclear discordance. In this present study, Lee-Yaw et. al. aim to map the extent of this cytonuclear discordance using additional genetic markers (AFLP and SNP data) and samples. They further aim to specifically investigate two hypotheses that could explain the observed patterns, which are adaptive introgression of mtDNA or a neutral wake of mtDNA left behind following hybrid zone movement. Feeding performance of individuals in a common environment was also assayed to test for associations between mitotypes and nuclear backgrounds suggesting coevolution of mito-nuclear haplotypes. Their results confirm a general pattern of cytonuclear discordance with limited introgression of a diagnostic nuclear marker. The lowest performance in the feeding performance assays were of individuals with the greatest degree of mismatch between the nuclear background and mitotype suggesting mito-nuclear coevolution at play. 
+
+
+****
+
+```{r echo=FALSE, fig.cap=""}
+knitr::include_graphics("Lee-Yaw_sample.png")
+```
+
+\newpage
+We will be recreating Fig 3. from the publication:
+
+$~$
+
+```{r echo=FALSE, fig.cap=""}
+knitr::include_graphics("Lee-Yaw_pubs_fig.png")
+```
+
+
+For easier manipulation of the data, we will be using the `dplyr` library ([\textcolor{blue}{https://github.com/hadley/dplyr}](https://github.com/hadley/dplyr)).
+This piece of code checks if `dplyr` is installed, if not, it installs it before loading.
+
+$~$
+
+```{r load dplyr, echo=TRUE, results='hide', message=FALSE}
+# Install if required packages not installed and load them
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+} else {
+  library(dplyr)
+}
+```
+
+\newpage
+
+\textbf{The data:}
+
+Reading in the data from the csv file "Feeding_and_SNP_data.csv" and store it in the variable 'data'
+
+```{r read data, echo=TRUE, results='hide', message=FALSE}
+# Read in the data from the csv file
+data = read.csv("Lee-Yaw_Jacobs_Irwin_MEC2014/Feeding_and_SNP_data.csv", header = TRUE)
+```
+
+Description of the data:
+
+The 'data frame' includes data from the feeding performance assays for 149 individuals from 3 different sites over a period of 7 weeks.
+
+* __Individual__ - Identifier for the individual salamanders
+* __Site__ - Pond where the individual was collected
+* __Sex__ - Sex of the individual
+* __mitotype__ - The mitochondrial haplotype for the individual
+* __G2116_num_RM_alleles__ - Number of diagnostic G2116 SNPs
+* __HOX_num_RM_alleles__ - Number of dignostic HOX SNPs
+* __Co1_num_RM_alleles__ - Number of diagnostic COI SNPs
+* __Final_Genetic_Group__ - Final genetic group assigned to the individual
+* __Temperature_Treatment__ - The temperature at which the feeding assays were conducted 
+* __Week__ - Week of the assay
+* __Mass.g__ - Mass of the individual recorded in grams
+* __MassChangeSinceWeek0__ - Running Total of Mass change in individual since Week 0
+* __Total_Crickets_Eaten__ - Total number of crickets eaten by the individual
+* __NumCrickets.AveCricketMass__ - Average mass of the total crickets eaten
+* __SevenWeekGain__ - Mass Gained over a period of 7 weeks
+* __MCE__ - Mean Conversion Efficiency 
+
+$~$
+
+Data Format:
+
+```{r data_descr, echo=TRUE, tidy=TRUE, tidy.opts=list(width.utoff=60), results='markup'}
+str(data)
+```
+
+
+
+\newpage
+
+\textbf{The Code:}
+
+\textbf{1. Subsetting and Filtering the data:}
+
+```{r data subset, echo=TRUE, results='hide', message=FALSE}
+# Subsetting data to get unique rows 
+data_trun = subset(data, Week == 7)
+
+# Filter out outlier
+outlier = filter(data_trun, Site == 1 & MassChangeSinceWeek0 > 2.0 & MCE < 0.03)
+
+# Remove outlier from plotting data
+data_trun = anti_join(data_trun, outlier, by = "Individual")
+
+# Subsetting data into females and males 
+data_f = subset(data_trun, Sex == 'F')
+data_m = subset(data_trun, Sex == 'M')
+```
+
+$~$
+
+\textbf{2. Computing Summary Stats}
+
+
+Defining functions for standard error and applying a function on a specific subset of data
+```{r echo=TRUE}
+# Function to calculate standard error
+std_err = function(x) {
+  sqrt(var(x)/length(x))
+}
+
+# Function to compute summary statistics for specific columns grouped by Sex and Site
+summ_stats = function(vars, func) {
+  lapply(list("F" = data_f, "M" = data_m), function(j) apply(j[, vars], 2, function(i) tapply(i, j[, "Site"], func)))
+}
+```
+
+$~$
+
+Computing Mean and Standard Error
+
+```{r echo=TRUE}
+# Calculate standard error for variables grouped by sex and site number
+se_results = summ_stats(c("MassChangeSinceWeek0", "MCE"), std_err)
+
+#Calculate mean for variables grouped by sex and site number
+mean_results = summ_stats(c("Total_Crickets_Eaten", "MassChangeSinceWeek0", "MCE"), mean)
+```
+
+\newpage
+
+\textbf{3. Defining the plotting subroutines}
+
+The main plotting subroutine:
+
+```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=65)}
+# Main routine for plotting each subfigure
+plot_figure = function(y, sex, pos, ...){
+  
+  # Parameters for the left-sided panels (the female ones)
+  if (sex == "F") {
+    dat = data_f
+    unicd_sym = "\u2640"
+    if (pos %in% c(5, 6)) {
+      par(mar = c(4, 4, 2, 2))
+      flag_yaxt = 's'
+    } else {
+      par(mar = c(2, 4, 2, 2))
+      flag_yaxt = 's'
+    }
+  # Parameters for the right-sided panels (the male ones)
+  } else {
+    dat = data_m
+    unicd_sym = "\u2642"
+    if (pos %in% c(5, 6)) {
+      par(mar = c(4, 1.2, 2, 4))
+      flag_yaxt = 'n'
+    } else {
+      par(mar = c(2, 1.2, 2, 4))
+      flag_yaxt = 'n'
+    }
+  }
+  # Main plot layer, x-values jittered to avoid overlap
+  plot(jitter(dat[, "Site"]), dat[, y], pch = c(16, 2)[as.numeric(as.factor(dat[,"Temperature_Treatment"]))], col = "grey", xaxt = 'n', yaxt = flag_yaxt, xlab = "", xlim = c(0, 9), ...)
+  # Add the right-side y-axis ticks for male panels
+  if (sex == 'M') {
+    axis(4, labels = FALSE)
+  }
+  # Add common x-axis
+  if (pos %in% c(5,6)) {
+    axis(1, at = seq(1, 8, by = 1))
+  }
+  # Add lines geographically demarcating the sites
+  abline(v = 3.5, col = "grey", lwd = 3)
+  abline(v = 6.5, col = "grey", lwd = 3)
+  # Add sub_labels to all panels a-f
+  mtext(paste("(", letters[pos], ")"), side = 3, adj = 0, line = 1.1, font = 2)
+  # Add venus/mars symbol bottom-right corner
+  mtext(unicd_sym, side = 1, adj = 0.96, line = -2.2, font = 2, cex = 1.8)
+}
+```
+
+$~$
+
+$~$
+
+Subroutine to add significance bars:
+
+```{r}
+# Routine to add significance bars outside plotting area
+add_sig_segments = function (y1, y2, d) {
+  
+  x1 = 2
+  x2 = 4.5
+  x3 = 5
+  x4 = 7.5
+  
+  # Outer segment
+  segments(x1, y1, x4, y1)
+  segments(x1, y1-d, x1, y1+d)
+  segments(x4, y1-d, x4, y1+d)
+  # Inner segment 1
+  segments(x1, y2, x2, y2)
+  segments(x1, y2-d, x1, y2+d)
+  segments(x2, y2-d, x2, y2+d)
+  # Inner segment 2
+  segments(x3, y2, x4, y2)
+  segments(x3, y2-d, x3, y2+d)
+  segments(x4, y2-d, x4, y2+d)
+}
+```
+
+$~$
+
+Subroutine to add significance labels:
+
+```{r}
+# Routine to add significance labels outside plotting area
+add_sig_labels = function(lab_list) {
+  mtext(lab_list[1], side = 3, adj = 0.525, line = 2, cex = 0.7)
+  mtext(lab_list[2], side = 3, adj = 0.375, line = 1.03, cex = 0.7)
+  mtext(lab_list[3], side = 3, adj = 0.685, line = 1.03, cex = 0.7)
+  
+}
+```
+
+\newpage
+
+\textbf{4. Plotting the graph to a PDF}
+
+```{r results='hide'}
+# Open the pdf device (cairo_pdf to enable writing of unicode characters)
+cairo_pdf("Lee-Yaw_et_al_Fig_3.pdf", 8.50, 11.00, family="ArialUnicodeMS")
+
+#  Split the graph into 6 panels
+layout(matrix(seq(1,6,1), nrow = 3, ncol = 2, byrow = TRUE))
+
+# Define the outer margins of the plot
+par(oma = c(3, 2, 1.3, 2))
+
+# Define parameters for the plotting routine
+y_dat = rep(c("Total_Crickets_Eaten", "MassChangeSinceWeek0", "MCE"), each = 2)
+sex_dat = rep(c('F', 'M'), times = 3)
+y_lims = rep(list(c(60, 101), c(0.0, 2.5), c(0.0, 0.45)), each = 2)
+y_labs = c('Number of crickets consumed', '', 'Total mass gained(g)', '', 'Mass conversion efficiency', '')
+sig_lab_list = list(c('ns', 'ns', 'ns'), c('ns', "\u2731", "\u2731"), c('ns', "\u2731", "\u2731"), c('ns', "\u2731", "\u2731"), c('ns', 'ns', 'ns'), c('ns', "\u2731", "\u2731"))
+seg_coords = rep(list(c(106.6,104.4,0.3), c(2.85, 2.71, 0.02), c(0.515, 0.49, 0.004)), each = 2)
+
+# Plot the six subfigures
+for (i in seq(1:6)) {
+  
+  plot_figure(y_dat[i], sex_dat[i], i, ylim = y_lims[i][[1]], ylab = y_labs[i])
+  
+  #Plot the outlier point
+  if (i == 3) {
+    points(outlier[1,]$Site, outlier[1,]$MassChangeSinceWeek0, pch = 1, col = "grey")
+  }
+  if (i == 5) {
+    points(outlier[1,]$Site, outlier[1,]$MCE, pch = 1, col = "grey")
+  }
+  
+  # Add the horizontal black bars for mean values
+  for (j in seq(1:8)) {
+    x_mean_low = j - 0.25
+    x_mean_high = j + 0.25
+    y_mean = mean_results[[sex_dat[i]]][j, y_dat[i]]
+    segments(x_mean_low, y_mean, x1 = x_mean_high, lwd = 3)
+    
+    # Add standard error arrows for panels c-f
+    if (i %in% seq(3,6)) {
+      se = se_results[[sex_dat[i]]][j, y_dat[i]]
+      arrows(j, y_mean + se, j, y_mean - se, code = 3, angle = 90, length = 0.05)
+    }
+  }
+  
+  # Set the Graphical parameters to allow plotting outside the subfigure
+  par(xpd = NA)
+  
+  # Add line segments for statistical significane levels on the subfigures
+  add_sig_segments(seg_coords[i][[1]][[1]], seg_coords[i][[1]][[2]], seg_coords[i][[1]][[3]])
+  
+  # Add labels for statistical significane on the subfigures
+  add_sig_labels(sig_lab_list[i][[1]])
+  
+  # Set the Graphical parameters to default values 
+  par(mar = c(5, 4, 4, 2), xpd = FALSE)
+}
+
+# Label the x-axis
+mtext(text = "Pond number", side = 1,  line = -1, outer = TRUE, cex = 0.7)
+
+# Close the plotting device
+dev.off()
+```
+
+$~$
+
+\textbf{And, finally the recreated plot (Ta-Da!):}
+
+\newpage
+
+![Recreated Fig 3. from Lee-Yaw et. al.](Lee-Yaw_et_al_Fig_3.pdf)
