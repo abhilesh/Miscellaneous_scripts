@@ -1,0 +1,1 @@
+A collection of one-off random scripts that could not go elsewhere.
